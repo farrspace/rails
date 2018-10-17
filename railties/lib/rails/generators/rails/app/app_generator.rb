@@ -80,7 +80,6 @@ module Rails
       directory "app"
 
       keep_file "app/assets/images"
-      empty_directory_with_keep_file "app/assets/javascripts/channels" unless options[:skip_action_cable]
 
       keep_file  "app/controllers/concerns"
       keep_file  "app/models/concerns"
@@ -249,7 +248,7 @@ module Rails
 
       add_shared_options_for "application"
 
-      # Add bin/rails options
+      # Add rails command options
       class_option :version, type: :boolean, aliases: "-v", group: :rails,
                              desc: "Show Rails version number and quit"
 
@@ -260,7 +259,10 @@ module Rails
                                  desc: "Don't run bundle install"
 
       class_option :webpack, type: :string, default: nil,
-                             desc: "Preconfigure for app-like JavaScript with Webpack (options: #{WEBPACKS.join('/')})"
+                             desc: "Preconfigure Webpack with a particular framework (options: #{WEBPACKS.join('/')})"
+
+      class_option :skip_webpack_install, type: :boolean, default: false,
+                                          desc: "Don't run Webpack install"
 
       def initialize(*args)
         super
@@ -321,7 +323,7 @@ module Rails
       end
 
       def display_upgrade_guide_info
-        say "\nAfter this, check Rails upgrade guide at http://guides.rubyonrails.org/upgrading_ruby_on_rails.html for more details about upgrading your app."
+        say "\nAfter this, check Rails upgrade guide at https://guides.rubyonrails.org/upgrading_ruby_on_rails.html for more details about upgrading your app."
       end
       remove_task :display_upgrade_guide_info
 
@@ -409,7 +411,7 @@ module Rails
 
       def delete_js_folder_skipping_javascript
         if options[:skip_javascript]
-          remove_dir "app/assets/javascripts"
+          remove_dir "app/javascript"
         end
       end
 
@@ -436,7 +438,8 @@ module Rails
 
       def delete_action_cable_files_skipping_action_cable
         if options[:skip_action_cable]
-          remove_file "app/assets/javascripts/cable.js"
+          remove_file "app/javascript/channels/consumer.js"
+          remove_dir "app/javascript/channels"
           remove_dir "app/channels"
         end
       end
@@ -469,7 +472,8 @@ module Rails
       end
 
       public_task :apply_rails_template, :run_bundle
-      public_task :run_webpack, :generate_spring_binstubs
+      public_task :generate_bundler_binstub, :generate_spring_binstubs
+      public_task :run_webpack
 
       def run_after_bundle_callbacks
         @after_bundle_callbacks.each(&:call)
@@ -515,7 +519,7 @@ module Rails
       end
 
       def valid_const?
-        if app_const =~ /^\d/
+        if /^\d/.match?(app_const)
           raise Error, "Invalid application name #{original_app_name}. Please give a name which does not start with numbers."
         elsif RESERVED_NAMES.include?(original_app_name)
           raise Error, "Invalid application name #{original_app_name}. Please give a " \
